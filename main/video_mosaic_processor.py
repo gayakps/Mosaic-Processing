@@ -2,11 +2,12 @@ import cv2
 import numpy as np
 from ultralytics import YOLO
 
-from main.ffmpeg_video import get_video_properties
+from main.ffmpeg_video import get_video_properties, merge_audio
 
 model = YOLO('yolov8n-face.pt')  # pretrained YOLOv8n model
 # 원본 영상 파일 이름
-source_video = '/Users/seonwoo/Desktop/롯데택배_얼굴_3명.mov'
+source_file_name = 'Test2.mp4'
+source_video = f'/Users/seonwoo/Desktop/{source_file_name}'
 
 
 # 원본 영상 파일 열기
@@ -25,8 +26,9 @@ print(f"Original video resolution: {width}x{height}")
 # VideoWriter 설정
 fourcc = cv2.VideoWriter_fourcc(*video_props['codec'])  # ffmpeg로부터 추출한 코덱에 따라 변경할 수 있습니다.
 
+result_file_name = f'Result_{source_file_name}.mp4'
 # 결과 영상 파일 이름
-result_video = '/Users/seonwoo/Desktop/Mosaic_Result/롯데택배_얼굴_3명_Resoult.mp4'
+result_video = f'/Users/seonwoo/Desktop/Mosaic_Result/{result_file_name}'
 
 out = cv2.VideoWriter(result_video, fourcc, video_props['fps'], (video_props['width'], video_props['height']))
 
@@ -66,7 +68,7 @@ while cap.isOpened():
     out.write(frame)
 
     # 결과 프레임 표시
-    cv2.imshow('Mosaic Face Detection', frame)
+    # cv2.imshow('Mosaic Face Detection', frame)
 
     # 'q'를 누르면 종료
     if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -76,3 +78,8 @@ while cap.isOpened():
 cap.release()
 out.release()
 cv2.destroyAllWindows()
+
+final_video = f'Include_Sound_{result_video}'
+
+merge_audio(result_video, source_video, final_video)
+

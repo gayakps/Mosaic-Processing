@@ -3,3 +3,6 @@ opencv-python~=4.9.0.80
 numpy~=1.26.4
 ultralytics~=8.1.20
 ffmpeg-python
+deep-sort-realtime
+Flask
+quart

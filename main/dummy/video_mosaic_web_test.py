@@ -1,20 +1,18 @@
 import asyncio
 import datetime
-import queue
 import threading
 import time
 
 from quart import Quart, Response
 import cv2
-from quart.wrappers import request
 from ultralytics import YOLO
 
-from main.ffmpeg_video import get_video_properties
+from main.core.util.ffmpeg_video import get_video_properties
 
 app = Quart(__name__)
 
 # 모델과 비디오 소스 설정
-model = YOLO('yolov8n-face.pt')
+model = YOLO('../yolo/yolov8n-face.pt')
 
 source_file_name = 'Test2.mp4'
 source_video = f'/Users/seonwoo/Desktop/{source_file_name}'

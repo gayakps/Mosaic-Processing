@@ -1,14 +1,11 @@
 import datetime
 
 import cv2
-import numpy as np
 from ultralytics import YOLO
 
-from main.ffmpeg_video import get_video_properties, merge_audio
-from deep_sort_realtime.deepsort_tracker import DeepSort
+from main.core.util.ffmpeg_video import get_video_properties, merge_audio
 
-
-model = YOLO('yolov8n-face.pt')  # pretrained YOLOv8n model
+model = YOLO('../yolo/yolov8n-face.pt')  # pretrained YOLOv8n model
 # 원본 영상 파일 이름
 source_file_name = 'Test2.mp4'
 source_video = f'/Users/seonwoo/Desktop/{source_file_name}'
@@ -39,6 +36,7 @@ out = cv2.VideoWriter(result_video, fourcc, video_props['fps'], (video_props['wi
 # 결과 영상을 위한 VideoWriter 객체 생성
 
 while cap.isOpened():
+
     ret, frame = cap.read()
     start = datetime.datetime.now()
 

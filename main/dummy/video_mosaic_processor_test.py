@@ -1,14 +1,13 @@
 import datetime
 
 import cv2
-import numpy as np
 from ultralytics import YOLO
 
-from main.ffmpeg_video import get_video_properties, merge_audio
+from main.core.util.ffmpeg_video import get_video_properties, merge_audio
 from deep_sort_realtime.deepsort_tracker import DeepSort
 
 
-model = YOLO('yolov8n-face.pt')  # pretrained YOLOv8n model
+model = YOLO('../yolo/yolov8n-face.pt')  # pretrained YOLOv8n model
 tracker = DeepSort(max_age=50)
 # 원본 영상 파일 이름
 source_file_name = '롯데택배_얼굴_3명.mov'

@@ -14,8 +14,11 @@ from main.core.web.mosaic_process_to_web import app
 # 모델과 비디오 소스 설정
 model = YOLO('../yolo/yolov8n-face.pt')
 
+before_number_of_face = 0
+
 
 async def process_video():
+    global before_number_of_face  # 얼굴 개수 전역 변수 설정
     frame_size = 0
     scale_factor = 0.7  # 해상도를 70%로 설정 (즉, 30% 감소)
     start = datetime.datetime.now()
@@ -24,6 +27,8 @@ async def process_video():
 
     try:
         while True:
+
+            now_frame_start = datetime.datetime.now()
 
             tracking_target_results = []
 
@@ -42,7 +47,6 @@ async def process_video():
                 continue  # 다음 프레임으로 건너뛰기
 
             frame = cv2.resize(frame, (int(VideoSource.width), int(VideoSource.height)))
-
             # 모델을 프레임에 적용하여 결과를 얻습니다.
             results = await asyncio.to_thread(model, frame)
 
@@ -58,13 +62,14 @@ async def process_video():
                     xmin, ymin, xmax, ymax = int(data[0]), int(data[1]), int(data[2]), int(data[3])
                     label = int(data[5])
 
+                    if Tracker.advanced_tracker_enable is True:  # 이전 얼굴보다 현재 얼굴이 작거나 현재 추출된 얼굴 개수가 0 이라면
+                        tracking_target_results.append([[xmin, ymin, xmax - xmin, ymax - ymin], confidence, label])
+                        print('값을 넣어줍니다')
+
                     if Tracker.enable is True:
                         tracking_target_results.append([[xmin, ymin, xmax - xmin, ymax - ymin], confidence, label])
                     else:
                         w, h = xmax - xmin, ymax - ymin  # Calculate width and height of the box
-
-                        print(f'W {w} H {h}')
-
                         # 감지된 얼굴 영역에 대한 모자이크 처리
                         face = frame[ymin:ymax, xmin:xmax]
                         face = cv2.resize(face, (w // 10, h // 10))
@@ -74,9 +79,18 @@ async def process_video():
                         cv2.putText(frame, text, (xmin, ymin), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1,
                                     cv2.LINE_AA)
 
+            now_number_of_face = mosaic_users
+
+            enable_try_advanced_tracker = now_number_of_face < before_number_of_face or now_number_of_face == 0 and Tracker.enable is False  ## Tracker 가 False 일 때 만 사용가능
+
+            print(f'Before Face Amount : {before_number_of_face} Now : {now_number_of_face} 강화된 Tracking : {enable_try_advanced_tracker}')
+
+            before_number_of_face = now_number_of_face
             # 모자이크 처리된 프레임을 결과 영상 파일에 쓰기
 
-            if Tracker.enable is True:
+            if Tracker.enable is True or enable_try_advanced_tracker is True:
+
+                print('Enabling Try Advanced 작업을 시작합니다')
 
                 tracking_results = Tracker.tracker.update_tracks(tracking_target_results, frame=frame)
 
@@ -106,19 +120,15 @@ async def process_video():
                     # roi를 축소하고 다시 확대하여 모자이크 효과를 적용합니다.
                     h, w = roi.shape[:2]
 
-
-
-                    w_mosaic_after = w//mosaic_size
-                    h_mosaic_after = h//mosaic_size
+                    w_mosaic_after = w // mosaic_size
+                    h_mosaic_after = h // mosaic_size
 
                     if w_mosaic_after <= 0:
                         w_mosaic_after = 1
                     if h_mosaic_after <= 0:
                         h_mosaic_after = 1
 
-                    print(f'Xmin : {xmin}, Ymin : {ymin} Xmax : {xmax}, Ymax : {ymax} h : {h} w : {w} Result : {w_mosaic_after} , {h_mosaic_after}')
-
-
+                    print( f'Xmin : {xmin}, Ymin : {ymin} Xmax : {xmax}, Ymax : {ymax} h : {h} w : {w} Result : {w_mosaic_after} , {h_mosaic_after}')
 
                     roi_small = cv2.resize(roi, (w_mosaic_after, h_mosaic_after), interpolation=cv2.INTER_LINEAR)
                     roi_mosaic = cv2.resize(roi_small, (w, h), interpolation=cv2.INTER_NEAREST)
@@ -128,13 +138,12 @@ async def process_video():
 
                     # 사각형과 텍스트를 그립니다.
                     cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), (0, 255, 0), 2)
-
-                    cv2.putText(frame, str(f'Tracking ID : {track_id}'), (xmin + 5, ymin - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255),2)
+                    cv2.putText(frame, str(f'Tracking ID : {track_id}'), (xmin + 5, ymin - 8), cv2.FONT_HERSHEY_SIMPLEX,
+                                0.5, (0, 0, 255), 2)
 
             # 결과 프레임 표시
             end = datetime.datetime.now()
             total = (end - start).total_seconds()
-            print(f'Process 1 frame: {total * 1000:.0f} milliseconds')
 
             now_time = int(total)
 
@@ -144,6 +153,12 @@ async def process_video():
             cv2.putText(frame, text, (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
 
             VideoSource.out.write(frame)
+
+            now_frame_end = datetime.datetime.now()
+
+            now_frame_total = (now_frame_end - now_frame_start).microseconds
+
+            print(f'#### 1 Frame Process: {now_frame_total / 1000:.0f} ms #### Total : {total:.1f} sec')
 
             async with VideoSource.frame_lock:
                 VideoSource.current_frame = frame

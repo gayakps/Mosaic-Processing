@@ -4,7 +4,7 @@ import cv2
 
 from main.core.util.ffmpeg_video import get_video_properties
 
-source_file_name = '공항.mov'
+source_file_name = '워터밤.mov'
 source_video = f'/Users/seonwoo/Desktop/{source_file_name}'
 
 cap = cv2.VideoCapture(source_video)

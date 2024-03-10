@@ -10,7 +10,7 @@ from deep_sort_realtime.deepsort_tracker import DeepSort
 model = YOLO('../yolo/yolov8n-face.pt')  # pretrained YOLOv8n model
 tracker = DeepSort(max_age=50)
 # 원본 영상 파일 이름
-source_file_name = '롯데택배_얼굴_3명.mov'
+source_file_name = '울 주영이.mp4'
 source_video = f'/Users/seonwoo/Desktop/{source_file_name}'
 
 

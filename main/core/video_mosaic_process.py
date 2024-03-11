@@ -8,13 +8,14 @@ from ultralytics import YOLO
 
 from main.core.ai import Tracker
 from main.core.ai.Tracker import GREEN, WHITE
+from main.core.ai.video_similarity_checker import compare_frames, add_text_and_line
 from main.core.infra import VideoSource
 from main.core.web.mosaic_process_to_web import app
 
 # 모델과 비디오 소스 설정
 model = YOLO('../yolo/yolov8n-face.pt')
 
-before_number_of_face = 0
+before_number_of_face = 0  # 이전 프레임에서 추출된 얼굴 개수
 
 
 async def process_video():
@@ -64,7 +65,6 @@ async def process_video():
 
                     if Tracker.advanced_tracker_enable is True:  # 이전 얼굴보다 현재 얼굴이 작거나 현재 추출된 얼굴 개수가 0 이라면
                         tracking_target_results.append([[xmin, ymin, xmax - xmin, ymax - ymin], confidence, label])
-                        print('값을 넣어줍니다')
 
                     if Tracker.enable is True:
                         tracking_target_results.append([[xmin, ymin, xmax - xmin, ymax - ymin], confidence, label])
@@ -84,6 +84,19 @@ async def process_video():
             enable_try_advanced_tracker = now_number_of_face < before_number_of_face or now_number_of_face == 0 and Tracker.enable is False  ## Tracker 가 False 일 때 만 사용가능
 
             print(f'Before Face Amount : {before_number_of_face} Now : {now_number_of_face} 강화된 Tracking : {enable_try_advanced_tracker}')
+
+            similarity = await compare_frames(VideoSource.current_frame, frame, use_gray=True)
+
+            if similarity is not None:
+                print(f'[두 이미지간의 유사도 {similarity:.2f}]')
+
+                if similarity < 0.55:
+                    # 두 이미지를 옆으로 결합
+                    combined_frame = await add_text_and_line(VideoSource.current_frame, frame)
+                    current_datetime = datetime.datetime.now().strftime("%Y%m%d_%H_%M_%S_%f")[:-3]  # 마지막 3개 문자를 제거하여 밀리초까지 포함
+                    # 파일 경로와 이름을 설정할 때 현재 날짜와 시간을 포함시킵니다.
+                    filename = f'/Users/seonwoo/Desktop/유사도_불일치/유사도_{similarity:.2f}_{current_datetime}.jpg'
+                    cv2.imwrite(filename, combined_frame)
 
             before_number_of_face = now_number_of_face
             # 모자이크 처리된 프레임을 결과 영상 파일에 쓰기
@@ -128,7 +141,8 @@ async def process_video():
                     if h_mosaic_after <= 0:
                         h_mosaic_after = 1
 
-                    print( f'Xmin : {xmin}, Ymin : {ymin} Xmax : {xmax}, Ymax : {ymax} h : {h} w : {w} Result : {w_mosaic_after} , {h_mosaic_after}')
+                    print(
+                        f'Xmin : {xmin}, Ymin : {ymin} Xmax : {xmax}, Ymax : {ymax} h : {h} w : {w} Result : {w_mosaic_after} , {h_mosaic_after}')
 
                     roi_small = cv2.resize(roi, (w_mosaic_after, h_mosaic_after), interpolation=cv2.INTER_LINEAR)
                     roi_mosaic = cv2.resize(roi_small, (w, h), interpolation=cv2.INTER_NEAREST)
@@ -155,7 +169,6 @@ async def process_video():
             VideoSource.out.write(frame)
 
             now_frame_end = datetime.datetime.now()
-
             now_frame_total = (now_frame_end - now_frame_start).microseconds
 
             print(f'#### 1 Frame Process: {now_frame_total / 1000:.0f} ms #### Total : {total:.1f} sec')

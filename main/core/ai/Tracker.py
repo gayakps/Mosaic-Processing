@@ -1,11 +1,11 @@
 from deep_sort_realtime.deepsort_tracker import DeepSort
 
-enable = True
+enable = False
 
 # 얼굴 추적을 위한 DeepSort 인스턴스 생성
 tracker = DeepSort(
     max_iou_distance=0.3,   # 얼굴의 크기가 작기 때문에 IOU 거리를 줄입니다.
-    max_age=2,             # 추적 대상이 오래 보이지 않아도 추적을 유지합니다.
+    max_age=5,             # 추적 대상이 오래 보이지 않아도 추적을 유지합니다.
     n_init=1,               # 초기화 프레임 수; 얼굴이 잠깐 보여도 빠르게 추적을 시작합니다.
     nms_max_overlap=0.5,    # 비최대 억제; 얼굴 감지에서 중복을 줄입니다.
     max_cosine_distance=0.3, # 코사인 거리; 얼굴의 외모 변화에 좀 더 유연하게 대응합니다.

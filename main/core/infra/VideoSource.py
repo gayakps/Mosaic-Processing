@@ -4,7 +4,7 @@ import cv2
 
 from main.core.util.ffmpeg_video import get_video_properties
 
-source_file_name = 'Test2.mp4'
+source_file_name = '울 주영이.mp4'
 source_video = f'/Users/seonwoo/Desktop/{source_file_name}'
 
 cap = cv2.VideoCapture(source_video)
@@ -29,5 +29,5 @@ out = cv2.VideoWriter(result_video, fourcc, video_props['fps'], (video_props['wi
 duration = int(video_props['duration'])
 
 # 전역 변수로 최신 프레임 저장
-current_frame = None
+before_frame = None
 frame_lock = asyncio.Lock()  # 프레임 접근을 위한 비동기 락

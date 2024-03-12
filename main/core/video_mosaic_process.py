@@ -79,9 +79,9 @@ async def process_video():
                     face = cv2.resize(face, (w // 10, h // 10))
                     face = cv2.resize(face, (w, h), interpolation=cv2.INTER_AREA)
                     frame[ymin:ymax, xmin:xmax] = face
-                    text = f'Mosaic Target - {mosaic_users}'
-                    cv2.putText(frame, text, (xmin, ymin), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1,
-                                cv2.LINE_AA)
+                    # text = f'Mosaic Target - {mosaic_users}'
+                    # cv2.putText(frame, text, (xmin, ymin), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1,
+                    #             cv2.LINE_AA)
 
             now_number_of_face = mosaic_users
 
@@ -103,90 +103,89 @@ async def process_video():
                     # 파일 경로와 이름을 설정할 때 현재 날짜와 시간을 포함시킵니다.r
                     filename = f'/Users/seonwoo/Desktop/유사도_불일치/유사도_{similarity:.2f}_{current_datetime}.jpg'
                     cv2.imwrite(filename, combined_frame)
-                else: # 유사도가 높다는건 비슷한 화면임을 의미함
 
-                    if enable_try_advanced_tracker is True and face_tracker.advanced_tracker_enable: # 강화된 Tracking 이 활성화 되었을 때에
+            if enable_try_advanced_tracker is True or face_tracker.advanced_tracker_enable and len(before_face_coordinate) > 0:  # 강화된 Tracking 이 활성화 되었을 때에
 
-                        ## 이전 프레임과 비교하여 최신 프레임에서 Trakcing Processing 을 해야함
+                print('------- Enabling Try Advanced 작업을 시작합니다 ------')
 
-                        print('------- Enabling Try Advanced 작업을 시작합니다 ------')
+                tracking_results = face_tracker.tracker.update_tracks(now_frame_face_coordinate, frame=frame)
 
-                        tracking_results = face_tracker.tracker.update_tracks(before_face_coordinate, frame=VideoSource.before_frame)
+                for result in tracking_results:
 
-                        for result in tracking_results:
+                    print('Tracking 작업을 시작합니다')
 
-                            print('Tracking 작업을 시작합니다')
+                    if not result.is_confirmed():
+                        print('확정되지 않았습니다')
+                        continue
 
-                            if not result.is_confirmed():
-                                print('확정되지 않았습니다')
-                                continue
+                    track_id = result.track_id
+                    ltrb = result.to_ltrb()
 
-                            track_id = result.track_id
-                            ltrb = result.to_ltrb()
+                    xmin, ymin, xmax, ymax = int(ltrb[0]), int(ltrb[1]), int(ltrb[2]), int(ltrb[3])
 
-                            xmin, ymin, xmax, ymax = int(ltrb[0]), int(ltrb[1]), int(ltrb[2]), int(ltrb[3])
+                    if ymin < 0:
+                        ymin = 0
 
-                            if ymin < 0:
-                                ymin = 0
+                    if xmin < 0:
+                        xmin = 0
 
-                            if xmin < 0:
-                                xmin = 0
+                    # 현재 처리하려는 얼굴의 좌표
+                    current_face = [xmin, ymin, xmax - xmin, ymax - ymin]
 
-                            # 현재 처리하려는 얼굴의 좌표
-                            current_face = [xmin, ymin, xmax - xmin, ymax - ymin]
+                    # 현재 처리하려는 얼굴이 이미 처리되었는지 확인
+                    already_processed = any(
+                        all(abs(current_face[i] - existing_face[i]) < 30 for i in range(4))  # 임계값 설정
+                        for existing_face, _, _ in now_frame_face_coordinate  # existing_face는 좌표만 사용
+                    )
 
-                            # 현재 처리하려는 얼굴이 이미 처리되었는지 확인
-                            already_processed = any(
-                                all(abs(current_face[i] - existing_face[i]) < 10 for i in range(4))  # 임계값 설정
-                                for existing_face, _, _ in now_frame_face_coordinate  # existing_face는 좌표만 사용
-                            )
+                    if already_processed:
+                        # 이미 처리된 얼굴은 건너뜁니다.
+                        cv2.putText(frame, str(f'Already Tracking ID : {track_id}'), (xmin + 5, ymin - 8),
+                                    cv2.FONT_HERSHEY_SIMPLEX,
+                                    0.5, (0, 0, 255), 2)
+                        print(f'Face at {current_face} is skipped as it is already processed.')
+                        cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), (0, 0, 255), 2)
 
-                            if already_processed:
-                                # 이미 처리된 얼굴은 건너뜁니다.
-                                print(f'Face at {current_face} is skipped as it is already processed.')
-                                continue
-                            else:
-                                # 모자이크 처리를 수행합니다.
-                                # 모자이크를 적용할 영역 (xmin, ymin, xmax, ymax)
-                                roi = frame[ymin:ymax, xmin:xmax]
+                        continue
+                    else:
+                        # 모자이크 처리를 수행합니다.
+                        # 모자이크를 적용할 영역 (xmin, ymin, xmax, ymax)
+                        roi = frame[ymin:ymax, xmin:xmax]
 
-                                # 모자이크 처리할 때, 각 구역의 크기를 정합니다. 더 크게 설정할수록 더 크게 픽셀화됩니다.
-                                mosaic_size = 15  # 처리 속도를 높이기 위해 모자이크 크기를 증가
+                        # 모자이크 처리할 때, 각 구역의 크기를 정합니다. 더 크게 설정할수록 더 크게 픽셀화됩니다.
+                        mosaic_size = 15  # 처리 속도를 높이기 위해 모자이크 크기를 증가
 
-                                # 벡터화된 연산을 사용한 모자이크 처리
-                                # roi를 축소하고 다시 확대하여 모자이크 효과를 적용합니다.
-                                h, w = roi.shape[:2]
+                        # 벡터화된 연산을 사용한 모자이크 처리
+                        # roi를 축소하고 다시 확대하여 모자이크 효과를 적용합니다.
+                        h, w = roi.shape[:2]
 
-                                w_mosaic_after = w // mosaic_size
-                                h_mosaic_after = h // mosaic_size
+                        w_mosaic_after = w // mosaic_size
+                        h_mosaic_after = h // mosaic_size
 
-                                if w_mosaic_after <= 0:
-                                    w_mosaic_after = 1
-                                if h_mosaic_after <= 0:
-                                    h_mosaic_after = 1
+                        if w_mosaic_after <= 0:
+                            w_mosaic_after = 1
+                        if h_mosaic_after <= 0:
+                            h_mosaic_after = 1
 
-                                print(
-                                    f'Xmin : {xmin}, Ymin : {ymin} Xmax : {xmax}, Ymax : {ymax} h : {h} w : {w} Result : {w_mosaic_after} , {h_mosaic_after}')
+                        print(
+                            f'Xmin : {xmin}, Ymin : {ymin} Xmax : {xmax}, Ymax : {ymax} h : {h} w : {w} Result : {w_mosaic_after} , {h_mosaic_after}')
 
-                                roi_small = cv2.resize(roi, (w_mosaic_after, h_mosaic_after),
-                                                       interpolation=cv2.INTER_LINEAR)
-                                roi_mosaic = cv2.resize(roi_small, (w, h), interpolation=cv2.INTER_NEAREST)
+                        roi_small = cv2.resize(roi, (w_mosaic_after, h_mosaic_after),
+                                               interpolation=cv2.INTER_LINEAR)
+                        roi_mosaic = cv2.resize(roi_small, (w, h), interpolation=cv2.INTER_NEAREST)
 
-                                # 원래 이미지에 모자이크 처리된 영역을 다시 삽입합니다.
-                                frame[ymin:ymax, xmin:xmax] = roi_mosaic
+                        # 원래 이미지에 모자이크 처리된 영역을 다시 삽입합니다.
+                        frame[ymin:ymax, xmin:xmax] = roi_mosaic
 
-                                # 사각형과 텍스트를 그립니다.
-                                cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), (0, 255, 0), 2)
-                                cv2.putText(frame, str(f'Tracking ID : {track_id}'), (xmin + 5, ymin - 8),
-                                            cv2.FONT_HERSHEY_SIMPLEX,
-                                            0.5, (0, 0, 255), 2)
-                                # 새 얼굴 좌표 추가
-                                now_frame_face_coordinate.append([current_face, result.confidence, track_id])
-                                # 처리되지 않은 얼굴에 대한 정보를 출력합니다.
-                                print(f'Mosaic is applied at {current_face}.')
-
-                        print('----------------------------------')
-
+                        # 사각형과 텍스트를 그립니다.
+                        cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), (0, 255, 0), 2)
+                        cv2.putText(frame, str(f'Tracking ID : {track_id}'), (xmin + 5, ymin - 8),
+                                    cv2.FONT_HERSHEY_SIMPLEX,
+                                    0.5, (0, 0, 255), 2)
+                        # 새 얼굴 좌표 추가
+                        # now_frame_face_coordinate.append([current_face, result.confidence, track_id])
+                        # 처리되지 않은 얼굴에 대한 정보를 출력합니다.
+                        print(f'Mosaic is applied at {current_face}.')
 
             before_number_of_face = now_number_of_face
 

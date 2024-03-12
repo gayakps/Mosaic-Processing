@@ -10,8 +10,8 @@ app = Quart(__name__)
 async def generate_frames():
     while True:
         async with VideoSource.frame_lock:  # 수정된 라인
-            if VideoSource.current_frame is not None:
-                ret, buffer = cv2.imencode('.jpg', VideoSource.current_frame)
+            if VideoSource.before_frame is not None:
+                ret, buffer = cv2.imencode('.jpg', VideoSource.before_frame)
                 frame_bytes = buffer.tobytes()
                 yield (b'--frame\r\n'
                        b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')

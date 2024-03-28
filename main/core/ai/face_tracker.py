@@ -16,7 +16,7 @@ tracker = DeepSort(
 )
 
 
-advanced_tracker_enable = True # 강화된 Tracker 만일 YOLO 에서 감지된 얼굴이 없거나 이전 감지된 개수보다 '작을때' 해당 기능이 True 라면 Tracking 을 진행합니다
+advanced_tracker_enable = False # 강화된 Tracker 만일 YOLO 에서 감지된 얼굴이 없거나 이전 감지된 개수보다 '작을때' 해당 기능이 True 라면 Tracking 을 진행합니다
 
 CONFIDENCE_THRESHOLD = 0.6
 GREEN = (0, 255, 0)

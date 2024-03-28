@@ -1,10 +1,14 @@
 import asyncio
 import datetime
+import json
+import os
+
 import cv2
 from ultralytics import YOLO
 
 from main.core.ai import face_tracker
 from main.core.ai.video_similarity_checker import compare_frames, add_text_and_line
+from main.core.amqp.rabbit_mq import RabbitMQDataProducerToJavaServer
 from main.core.infra import VideoSource
 from main.core.web.mosaic_process_to_web import app
 
@@ -18,6 +22,9 @@ now_frame_face_coordinate = []
 
 
 async def process_video():
+
+
+
     global before_number_of_face  # 얼굴 개수 전역 변수 설정
     global before_face_coordinate
     global now_frame_face_coordinate
@@ -26,6 +33,12 @@ async def process_video():
     start = datetime.datetime.now()
 
     total_frames = int(VideoSource.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+    if RabbitMQDataProducerToJavaServer.send_message is True:
+        message = json.dumps({'amount': str(total_frames), 'data': 'Hi I\'seonwoo!'})
+        RabbitMQDataProducerToJavaServer.sendToJavaServer(message)
+
+
 
     try:
         while True:
@@ -109,10 +122,11 @@ async def process_video():
                         if enable_try_advanced_tracker is True and face_tracker.advanced_tracker_enable is True and len(
                                 before_face_coordinate) > 0:  # 강화된 Tracking 이 활성화 되었을 때에
                             print('------- Enabling Try Advanced 작업을 시작합니다 ------')
+                            if RabbitMQDataProducerToJavaServer.send_message is True:
+                                message = json.dumps({'frame': str(frame_size), 'similarity': str(similarity), 'data': '유사도 차이가 심합니다!'})
+                                RabbitMQDataProducerToJavaServer.sendToJavaServer(message)
+
                             face_tracker.track_object(cv2, before_face_coordinate, now_frame_face_coordinate, frame)
-
-
-
 
             before_number_of_face = now_number_of_face
 

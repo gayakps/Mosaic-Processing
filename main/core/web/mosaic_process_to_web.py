@@ -24,5 +24,4 @@ async def generate_frames():
 
 @app.route('/video')
 async def video():
-    print('사람이 접속했어요~~~')
     return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')

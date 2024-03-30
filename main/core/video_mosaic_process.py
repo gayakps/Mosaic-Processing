@@ -1,7 +1,8 @@
+#!/usr/bin/env python3
+
 import asyncio
 import datetime
 import json
-import os
 
 import cv2
 from ultralytics import YOLO
@@ -9,12 +10,14 @@ from ultralytics import YOLO
 from main.core.ai import face_tracker
 from main.core.ai.video_similarity_checker import compare_frames, add_text_and_line
 from main.core.amqp.rabbit_mq import RabbitMQDataProducerToJavaServer
+from main.core.aws import aws_s3_file
+from main.core.config import option
 from main.core.infra import VideoSource
 from main.core.web.mosaic_process_to_web import app
 
 # 모델과 비디오 소스 설정
 
-model = YOLO('/Users/seonwoo/Desktop/작업/Mosaic-System-Folder/Mosaic-Processing/main/yolo/yolov8n-face.pt')
+model = YOLO(option.face_model_path)
 
 before_number_of_face = 0  # 이전 프레임에서 추출된 얼굴 개수
 before_face_coordinate = []
@@ -22,8 +25,6 @@ now_frame_face_coordinate = []
 
 
 async def process_video():
-
-
 
     global before_number_of_face  # 얼굴 개수 전역 변수 설정
     global before_face_coordinate
@@ -37,8 +38,6 @@ async def process_video():
     if RabbitMQDataProducerToJavaServer.send_message is True:
         message = json.dumps({'amount': str(total_frames), 'data': 'Hi I\'seonwoo!'})
         RabbitMQDataProducerToJavaServer.sendToJavaServer(message)
-
-
 
     try:
         while True:
@@ -160,6 +159,7 @@ async def process_video():
         # 자원 정리 코드
         VideoSource.cap.release()
         VideoSource.out.release()  # 비디오 파일 작성에 사용되는 경우
+        aws_s3_file.upload_file(VideoSource.result_file_name, "mosaic-user-result")
         print('destroyed Resource')
 
     print('메서드가 종료 되었습니다')

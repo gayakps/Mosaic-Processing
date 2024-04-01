@@ -5,6 +5,8 @@ import datetime
 import json
 import os
 import sys
+import traceback
+
 import cv2
 
 from ultralytics import YOLO
@@ -12,7 +14,7 @@ from ultralytics import YOLO
 from core.ai import face_tracker
 from core.ai.video_similarity_checker import compare_frames, add_text_and_line
 from core.amqp.rabbit_mq import rabbit_mq_data_producer_to_java_server
-from core.aws import aws_s3_file
+from core.aws import aws_s3
 from core.config import option
 from core.infra import video_source
 from core.web.mosaic_process_to_web import app
@@ -26,18 +28,27 @@ before_number_of_face = 0  # 이전 프레임에서 추출된 얼굴 개수
 before_face_coordinate = []
 now_frame_face_coordinate = []
 
-async def process_video():
+user_id = None # user_id 전달
+video_id = None # video_id 전달
+video_file_name = None  # video_file_name 전달
+
+async def process_video(user_id, video_id, video_file_name):
 
     global before_number_of_face, now_time
     global before_face_coordinate
     global now_frame_face_coordinate
 
+    aws_s3.download_file(user_id=user_id, file_name=video_file_name)
+
     frame_size = 0
     start = datetime.datetime.now()
     total_frames = int(video_source.cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-    message = json.dumps({'type': "VIDEO_INFO", 'data': video_source.video_props})
+    message = json.dumps({'date': str(start), 'type': "VIDEO_INFO", 'data': str(video_source.video_props) })
     rabbit_mq_data_producer_to_java_server.sendToJavaServer(message)
+
+    success = True
+    state = "Success"
 
     try:
         while True:
@@ -119,9 +130,8 @@ async def process_video():
                         if enable_try_advanced_tracker is True and face_tracker.advanced_tracker_enable is True and len(
                                 before_face_coordinate) > 0:  # 강화된 Tracking 이 활성화 되었을 때에
                             print('------- Enabling Try Advanced 작업을 시작합니다 ------')
-                            if rabbit_mq_data_producer_to_java_server.send_message is True:
-                                message = json.dumps({'type': "SIMILARITY_INFO", 'frame': str(frame_size), 'similarity': str(similarity), 'data': '유사도 차이가 심합니다!'})
-                                rabbit_mq_data_producer_to_java_server.sendToJavaServer(message)
+                            message = json.dumps({'date': str(now_frame_start), 'type': "SIMILARITY_INFO", 'frame': str(frame_size), 'similarity': str(similarity), 'data': '유사도가 높습니다, Tracking System 이 가동됩니다'})
+                            rabbit_mq_data_producer_to_java_server.sendToJavaServer(message)
 
                             face_tracker.track_object(cv2, before_face_coordinate, now_frame_face_coordinate, frame)
 
@@ -148,21 +158,38 @@ async def process_video():
 
             print(f'#### 1 Frame Process: {now_frame_total / 1000:.0f} ms #### Total : {total:.1f} sec')
 
-
             async with video_source.frame_lock:
                 video_source.before_frame = frame
 
 
     except Exception as e:
-        print(f'Error: {e}')
+        error_traceback = traceback.format_exc()
+        print(f'Error: {e}\n{error_traceback}')
+        success = False
+        state = f'{e}\n{error_traceback}'
     finally:
         # 자원 정리 코드
-        video_source.cap.release()
-        video_source.out.release()  # 비디오 파일 작성에 사용되는 경우
-        aws_s3_file.upload_file(video_source.result_video, "mosaic-user-result")
-        message = json.dumps({'type': "SUCCESS_UPLOAD_MESSAGE", 'frame': str(frame_size), 'length': str(now_time), 'msg': '정상 파일 업로드가 진행되었습니다'})
+
+        if success is True:
+            video_source.cap.release()
+            video_source.out.release()  # 비디오 파일 작성에 사용되는 경우
+            aws_s3.upload_file(file_name=video_source.result_video, user_id=user_id)
+            print('destroyed Resource')
+        else:
+            print('실패했습니다 모든것을 재시도합니다')
+            # await main()
+
+        now = datetime.datetime.now()
+        message = json.dumps(
+            {'date': str(now),
+             'type': "UPLOAD_STATE",
+             'now_frame': frame_size,
+             'elapse_time_sec': now_time,
+             'total_frame': str(total_frames),
+             'status': success,
+             'msg': state}
+        )
         rabbit_mq_data_producer_to_java_server.sendToJavaServer(message)
-        print('destroyed Resource')
 
     print('메서드가 종료 되었습니다')
 
@@ -170,9 +197,9 @@ async def process_video():
 loop = asyncio.get_event_loop()
 
 
-async def main():
+async def main(user_id, video_id, video_file_name):
     server = asyncio.create_task(app.run_task(host='0.0.0.0', port=6840))
-    video = asyncio.create_task(process_video())
+    video = asyncio.create_task(process_video(user_id, video_id, video_file_name))
 
     await video
 
@@ -194,4 +221,9 @@ if __name__ == '__main__':
         print(sys._MEIPASS)
     except:
         os.chdir(os.getcwd())
-    asyncio.run(main())
+
+    user_id = sys.argv[0] # user_id 전달
+    video_id = sys.argv[1] # video_id 전달
+    video_file_name = sys.argv[3] # video_file_name 전달
+
+    asyncio.run(main(user_id, video_id, video_file_name))

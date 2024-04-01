@@ -13,7 +13,6 @@ message = json.dumps({'type': 'process_data', 'data': 'This is a sample data'})
 
 send_message_amount = 0
 
-send_message = True
 
 def sendToJavaServer(json_message):
     global send_message_amount
@@ -22,6 +21,6 @@ def sendToJavaServer(json_message):
     # 전송할 메시지. 예를 들어, 비즈니스 로직에 필요한 데이터를 JSON 형태로 전송할 수 있습니다.
     print(f'Sending message: {json_message} ( Amount : {send_message_amount} )')
     channel.basic_publish(exchange='',
-                          routing_key='key',
+                          routing_key=f'{option.queue_name}',
                           body=json_message)
 

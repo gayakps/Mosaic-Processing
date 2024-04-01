@@ -38,7 +38,7 @@ async def process_video(user_id, video_id, video_file_name):
     global before_face_coordinate
     global now_frame_face_coordinate
 
-    aws_s3.download_file(user_id=user_id, file_name=video_file_name)
+    aws_s3.download_file(user_id=user_id, file_name=video_file_name) # Blocking until download all files
 
     frame_size = 0
     start = datetime.datetime.now()

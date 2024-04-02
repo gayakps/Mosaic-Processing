@@ -16,7 +16,8 @@ from core.ai.video_similarity_checker import compare_frames, add_text_and_line
 from core.amqp.rabbit_mq import rabbit_mq_data_producer_to_java_server
 from core.aws import aws_s3
 from core.config import option
-from core.infra.video_source import VideoSource
+from core.infra import video_source
+from core.util.ffmpeg_video import get_video_properties
 from core.web.mosaic_process_to_web import app
 
 
@@ -40,19 +41,46 @@ async def process_video(user_id, video_id, video_file_name):
 
     aws_s3.download_file(user_id=user_id, video_id=video_id, file_name=video_file_name) # Blocking until download all files
 
-    videoSource = VideoSource()
+    # 디렉터리 경로 설정
+    directory = option.source_directory
 
-    videoSource.start()
+    # 디렉터리 내의 파일 목록 가져오기
+    files = os.listdir(directory)
 
-    video_cap = videoSource.cap
-    video_width = videoSource.width
-    video_height = videoSource.height
+    # 디렉터리 내의 첫 번째 파일 이름 얻기 (파일이 하나만 있다고 가정)
+    source_file_name = files[0] if files else None
+
+    source_video = f'{directory}/{source_file_name}'
+
+    video_cap = cv2.VideoCapture(source_video)
+    video_width = int(video_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    video_height = int(video_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    fps = video_cap.get(cv2.CAP_PROP_FPS)
+    size = (int(video_width), int(video_height))
+
+    video_props = get_video_properties(source_video)  # 데이터 추출
+    print(video_props)
+
+    print(f"Original video FPS: {fps}")
+    print(f"Original video resolution: {video_width}x{video_height}")
+
+    # VideoWriter 설정
+    fourcc = cv2.VideoWriter_fourcc(*video_props['codec'])  # ffmpeg로부터 추출한 코덱에 따라 변경할 수 있습니다.
+    # fourcc = cv2.VideoWriter.fourcc(*'DIVX')
+
+    # 결과 영상 파일 이름
+    result_video = f'{directory}/Result_{source_file_name}'
+
+    # out = cv2.VideoWriter(result_video, fourcc, video_props['fps'], (video_props['width'], video_props['height']))
+    out = cv2.VideoWriter(result_video, fourcc, video_props['fps'], size)
+
+    duration = int(video_props['duration'])
 
     frame_size = 0
     start = datetime.datetime.now()
     total_frames = int(video_cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-    message = json.dumps({'date': str(start), 'type': "VIDEO_INFO", 'data': str(videoSource.video_props) })
+    message = json.dumps({'date': str(start), 'type': "VIDEO_INFO", 'data': str(video_props) })
     rabbit_mq_data_producer_to_java_server.sendToJavaServer(message)
 
     success = True
@@ -120,7 +148,7 @@ async def process_video(user_id, video_id, video_file_name):
 
                 print(f'[Frame : {frame_size}] Before Face Amount : {before_number_of_face} Now : {now_number_of_face} 강화된 Tracking : {enable_try_advanced_tracker}')
 
-                similarity = await compare_frames(videoSource.before_frame, frame)
+                similarity = await compare_frames(video_source.before_frame, frame)
 
                 if similarity is not None:
 
@@ -128,7 +156,7 @@ async def process_video(user_id, video_id, video_file_name):
 
                     if similarity <= 0.45:
                         # 두 이미지를 옆으로 결합
-                        combined_frame = await add_text_and_line(videoSource.before_frame, frame)
+                        combined_frame = await add_text_and_line(video_source.before_frame, frame)
                         current_datetime = datetime.datetime.now().strftime("%Y%m%d_%H_%M_%S_%f")[
                                            :-3]  # 마지막 3개 문자를 제거하여 밀리초까지 포함
                         # 파일 경로와 이름을 설정할 때 현재 날짜와 시간을 포함시킵니다.r
@@ -143,7 +171,7 @@ async def process_video(user_id, video_id, video_file_name):
 
                             face_tracker.track_object(cv2, before_face_coordinate, now_frame_face_coordinate, frame)
 
-            videoSource.out.write(frame)
+            out.write(frame)
 
             frame_size += 1
             before_number_of_face = now_number_of_face
@@ -156,7 +184,7 @@ async def process_video(user_id, video_id, video_file_name):
 
             progress = (frame_size / total_frames) * 100
 
-            text = f'Processing {frame_size}/{total_frames} frames ({progress:.2f}%) | Time {now_time} / {videoSource.duration} Tracking Option : {face_tracker.advanced_tracker_enable}'
+            text = f'Processing {frame_size}/{total_frames} frames ({progress:.2f}%) | Time {now_time} / {duration} Tracking Option : {face_tracker.advanced_tracker_enable}'
             cv2.putText(frame, text, (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 255), 1, cv2.LINE_AA)
 
             now_frame_end = datetime.datetime.now()
@@ -166,8 +194,8 @@ async def process_video(user_id, video_id, video_file_name):
 
             print(f'#### 1 Frame Process: {now_frame_total / 1000:.0f} ms #### Total : {total:.1f} sec')
 
-            async with videoSource.frame_lock:
-                videoSource.before_frame = frame
+            async with video_source.frame_lock:
+                video_source.before_frame = frame
 
 
     except Exception as e:
@@ -180,8 +208,8 @@ async def process_video(user_id, video_id, video_file_name):
 
         if success is True:
             video_cap.release()
-            videoSource.out.release()  # 비디오 파일 작성에 사용되는 경우
-            aws_s3.upload_file(file_name=videoSource.result_video, video_id=video_id, user_id=user_id)
+            out.release()  # 비디오 파일 작성에 사용되는 경우
+            aws_s3.upload_file(file_name=result_video, video_id=video_id, user_id=user_id)
             print('destroyed Resource')
         else:
             print('실패했습니다 모든것을 재시도합니다')

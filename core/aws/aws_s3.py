@@ -31,7 +31,7 @@ def upload_file(user_id, video_id, file_name):
     # 파일 업로드
 
     key = f'{user_id}/{video_id}_{file_name}'
-    s3_client.delete_object(Bucket=f'{option.download_bucket}', Key=key) # 파일 삭제를 진행함
+    s3_client.delete_object(Bucket=f'{option.result_upload_bucket}', Key=key) # 파일 삭제를 진행함
     print(f'원본 파일 삭제 from s3 key {key}')
 
     try:

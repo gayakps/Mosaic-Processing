@@ -44,11 +44,18 @@ async def process_video(user_id, video_id, video_file_name):
     # 디렉터리 경로 설정
     directory = option.source_directory
 
-    # 디렉터리 내의 파일 목록 가져오기
-    files = os.listdir(directory)
+    # 디렉터리 내의 파일 목록 가져오기, mov와 mp4 확장자를 가진 파일만 필터링
+    files = [file for file in os.listdir(directory) if file.endswith(('.mov', '.mp4', '.MOV', '.MP4', '.avi', '.AVI', '.MKV', '.mkv'))]
 
-    # 디렉터리 내의 첫 번째 파일 이름 얻기 (파일이 하나만 있다고 가정)
+    # 디렉터리 내의 첫 번째 영상 파일 이름 얻기
+    # 파일이 없을 경우 None을 반환
     source_file_name = files[0] if files else None
+
+    if source_file_name is None:
+        print('No source video Source File Name video')
+        return
+
+    print(f'source_file_name: {source_file_name}')
 
     source_video = f'{directory}/{source_file_name}'
 

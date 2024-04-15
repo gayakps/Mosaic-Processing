@@ -76,7 +76,9 @@ async def process_video(user_id, video_id, video_file_name):
     # fourcc = cv2.VideoWriter.fourcc(*'DIVX')
 
     # 결과 영상 파일 이름
-    result_video = f'{directory}/Result_{source_file_name}'
+    result_video_file_name = f'Result_{source_file_name}'
+
+    result_video = f'{directory}/{result_video_file_name}'
 
     # out = cv2.VideoWriter(result_video, fourcc, video_props['fps'], (video_props['width'], video_props['height']))
     out = cv2.VideoWriter(result_video, fourcc, video_props['fps'], size)
@@ -216,7 +218,8 @@ async def process_video(user_id, video_id, video_file_name):
         if success is True:
             video_cap.release()
             out.release()  # 비디오 파일 작성에 사용되는 경우
-            aws_s3.upload_file(file_name=result_video, video_id=video_id, user_id=user_id)
+            #def upload_file(user_id, video_id, result_video_file_path ,result_file_name, source_file_name):
+            aws_s3.upload_file(source_file_name=source_file_name, result_video_file_path=result_video, result_file_name=result_video_file_name, video_id=video_id, user_id=user_id)
             print('destroyed Resource')
         else:
             print('실패했습니다 모든것을 재시도합니다')

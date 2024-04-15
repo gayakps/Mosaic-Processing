@@ -10,7 +10,13 @@ print(f'config.ini loaded {config.sections()}')
 
 face_model_path = config['yolo']['face_model_path']
 host = config['network']['host']
+
 queue_name = config['network']['queue_name']
+user_name = config['network']['user_name']
+password = config['network']['password']
+
+print(f'username: {user_name} password: {password}')
+
 source_directory = config['option']['source_directory']
 
 download_bucket = config['s3']['download_bucket']

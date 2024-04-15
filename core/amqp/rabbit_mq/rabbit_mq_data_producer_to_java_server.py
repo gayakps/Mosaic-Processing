@@ -4,7 +4,8 @@ import json
 from core.config import option
 
 # RabbitMQ 서버에 연결
-connection = pika.BlockingConnection(pika.ConnectionParameters(option.host))
+credentials = pika.PlainCredentials(username=option.user_name, password=option.password)
+connection = pika.BlockingConnection(pika.ConnectionParameters(option.host, credentials=credentials))
 channel = connection.channel()
 # 메시지를 전송할 큐 선언
 channel.queue_declare(queue=option.queue_name, durable=True)
